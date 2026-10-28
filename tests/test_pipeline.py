@@ -94,3 +94,43 @@ def test_cli_from_another_working_directory(prepared_data, tmp_path):
                              cwd=PROJECT_ROOT, capture_output=True, text=True, timeout=30)
     assert invalid.returncode == 1
     assert "Unknown product" in invalid.stderr
+
+
+def test_real_aspects_are_integrated_and_do_not_change_vader():
+    result = analyze_product("clothing:1078")
+    analysis = result["aspect_analysis"]
+    assert analysis["status"] == "available"
+    assert analysis["aspects"]
+    assert result["sentiment_counts"] == {"positive": 189, "negative": 9, "neutral": 2}
+    assert result["perception_rating"] == pytest.approx(8.85113)
+    scores = {row["review_id"]: row["prediction"]["sentiment_score"] for row in result["scored_reviews"]}
+    for item in analysis["aspects"]:
+        ids = item["supporting_review_ids"]
+        assert len(ids) == len(set(ids)) == item["supporting_review_count"]
+        assert all(identity in scores for identity in ids)
+        assert item["avg_sentiment"] == pytest.approx(sum(scores[identity] for identity in ids) / len(ids))
+        assert item["rating"] == pytest.approx(5 * (item["avg_sentiment"] + 1))
+
+
+def test_missing_resources_preserve_sentiment(prepared_data, monkeypatch):
+    from perceptra.nlp import aspects
+    def missing():
+        raise LookupError("Prepare local NLTK resources with prepare_demo_data.py --prepare-nltk")
+    monkeypatch.setattr(aspects, "check_nltk_resources", missing)
+    result = analyze_product("clothing:10", directory=prepared_data)
+    assert result["status"] == "complete"
+    assert result["analyzed_count"] == 2
+    assert result["aspect_analysis"]["status"] == "missing_resources"
+    assert result["aspect_analysis"]["aspects"] == []
+    assert "prepare-nltk" in result["warnings"][0]
+
+
+def test_optional_aspect_failure_does_not_erase_sentiment(prepared_data, monkeypatch):
+    from perceptra import analysis
+    def broken(*args):
+        raise RuntimeError("Injected aspect failure")
+    monkeypatch.setattr(analysis, "extract_aspects_from_records", broken)
+    result = analyze_product("clothing:10", directory=prepared_data)
+    assert result["status"] == "complete"
+    assert result["aspect_analysis"]["status"] == "failed"
+    assert result["perception_rating"] is not None

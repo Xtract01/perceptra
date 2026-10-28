@@ -1,10 +1,12 @@
-"""Day 1 local review-to-sentiment service, independent of Streamlit and aspects."""
+"""Local sentiment and aspect-estimate service, independent of Streamlit."""
 
 import argparse
 import json
+import logging
 
 from perceptra.ingestion.dataset_loader import list_products, load_manifest, load_review_batch
 from perceptra.nlp.cleaner import clean_records
+from perceptra.nlp.aspects import ASPECT_EXPLANATION, ASPECT_METHOD, extract_aspects_from_records
 from perceptra.nlp.sentiment import engine_metadata, score_records, summarize_sentiment
 from perceptra.schemas import AnalysisResult
 
@@ -17,6 +19,22 @@ def analyze_product(product_id, engine="vader", *, directory=None) -> AnalysisRe
     scored = score_records(cleaned, engine)
     summary = summarize_sentiment(scored)
     warnings = list(batch["warnings"])
+    product = next(p for p in manifest["products"] if p["product_id"] == product_id)
+    try:
+        aspect_analysis = extract_aspects_from_records(product["name"], cleaned, scored)
+    except LookupError as exc:
+        aspect_analysis = {
+            "status": "missing_resources", "method": ASPECT_METHOD, "explanation": ASPECT_EXPLANATION,
+            "aspects": [], "warnings": [str(exc)], "used_fallback": False,
+        }
+    except Exception:
+        logging.getLogger(__name__).exception("Aspect extraction failed for %s", product_id)
+        aspect_analysis = {
+            "status": "failed", "method": ASPECT_METHOD, "explanation": ASPECT_EXPLANATION,
+            "aspects": [], "warnings": ["Aspect estimates could not be completed. Overall sentiment results remain available."],
+            "used_fallback": False,
+        }
+    warnings.extend(aspect_analysis["warnings"])
     if cleaning["rejected_count"]:
         warnings.append(f"Preprocessing rejected {cleaning['rejected_count']} reviews; see rejection_reasons.")
     if cleaning["duplicate_count"]:
@@ -29,17 +47,18 @@ def analyze_product(product_id, engine="vader", *, directory=None) -> AnalysisRe
     provenance = {key: value for key, value in manifest.items() if key != "products"}
     return {
         **metadata, **summary, "status": "complete" if scored else "no_reviews",
-        "product": next(p for p in manifest["products"] if p["product_id"] == product_id),
+        "product": product,
         "dataset_provenance": provenance, "original_review_count": batch["original_count"],
         "rejected_review_count": batch["rejected_count"] + cleaning["rejected_count"],
         "duplicate_count": cleaning["duplicate_count"], "rejection_reasons": reasons,
-        "scored_reviews": scored, "warnings": warnings,
+        "scored_reviews": scored, "aspect_analysis": aspect_analysis, "warnings": warnings,
         "limitations": [
             "Historical anonymized clothing reviews; product names and brands are not available.",
             "VADER is lexicon-based and can miss sarcasm and contextual sentiment.",
             "Evidence is limited to the prepared subset and retained English reviews.",
             "Perception ratings are NLP-derived, not customer star ratings or calibrated probabilities.",
-            "Aspect extraction and dashboard integration are deferred to Day 2.",
+            ASPECT_EXPLANATION,
+            "Aspect extraction uses POS-tagged noun frequency, a dimension list, and a fallback; no TF-IDF is used.",
         ],
     }
 

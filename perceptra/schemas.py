@@ -73,6 +73,26 @@ class ReviewBatch(TypedDict):
     warnings: list[str]
 
 
+class AspectEstimate(TypedDict):
+    aspect: str
+    rating: float
+    avg_sentiment: float
+    sentiment: SentimentLabel
+    supporting_review_count: int
+    supporting_review_ids: list[str]
+    mention_count: int
+    evidence_volume: Literal["Low", "Medium", "High"]
+
+
+class AspectAnalysis(TypedDict):
+    status: Literal["available", "partial", "no_evidence", "missing_resources", "failed"]
+    method: str
+    explanation: str
+    aspects: list[AspectEstimate]
+    warnings: list[str]
+    used_fallback: bool
+
+
 class AnalysisResult(SentimentSummary):
     status: Literal["complete", "no_reviews"]
     product: Product
@@ -86,5 +106,6 @@ class AnalysisResult(SentimentSummary):
     model_version: str
     score_kind: str
     scored_reviews: list[ScoredReview]
+    aspect_analysis: AspectAnalysis
     warnings: list[str]
     limitations: list[str]

@@ -1,8 +1,8 @@
 # Perceptra
 
-Day 1 provides a local, offline product-review sentiment pipeline using genuine CC0
-clothing reviews and VADER. The Streamlit dashboard and aspect integration are Day 2
-work; they are not implemented in the analysis service yet.
+Perceptra provides a local Streamlit dashboard and an offline analysis service using
+genuine CC0 clothing reviews, VADER sentiment, and POS/frequency aspect estimates.
+This is a demonstration prototype, not a production-ready analytics system.
 
 ## Setup on Windows
 
@@ -19,8 +19,38 @@ py -3.13 -m venv .venv
 The runtime install is sufficient for analysis; the second install adds pytest.
 `pyproject.toml` is the only dependency specification. The requirements files
 delegate to the editable project and its `dev` extra. No global package installation
-or shell activation is required. Streamlit is installed for the approved MVP, but
-Day 1 processing neither imports it nor starts a server.
+or shell activation is required. The analysis service does not import Streamlit or
+start a server; the dashboard is a separate entry point.
+
+## Launch and use the dashboard
+
+If you prefer an activated shell, run `.\.venv\Scripts\Activate.ps1`. Activation
+is optional; the explicit interpreter commands below also work without changing
+PowerShell's execution policy.
+
+```powershell
+.\.venv\Scripts\python.exe scripts/prepare_demo_data.py --prepare-nltk
+.\.venv\Scripts\python.exe -m streamlit run app/streamlit_app.py --server.address 127.0.0.1 --server.port 8501
+```
+
+Resource preparation is a one-time online setup step. It can be omitted when the
+resources already exist in `.venv/nltk_data/`. Open `http://127.0.0.1:8501`, select
+Clothing 1078 or Clothing 862, and click **Analyze product**. The application shows
+five overview metrics, a sentiment chart with exact counts, positive/negative review
+examples, aspect estimates with supporting evidence, and a customer review explorer.
+
+Use the tabs to navigate. The review explorer supports text search, sentiment
+filtering, and 25 reviews per page. Aspect evidence initially shows up to ten
+supporting reviews. Changing products clears the previous results and filters;
+click Analyze again to calculate results for the new selection.
+
+Missing datasets produce setup guidance. Missing NLTK resources preserve the VADER
+results and explain how to restore aspect estimates. Processing failures clear old
+results and show a user-facing message. Empty results never receive a fabricated
+rating. No credentials, paid APIs, hosted models, or cloud infrastructure are needed.
+
+Stop the server with **Ctrl+C** when finished. See [demo instructions](docs/demo.md)
+and [Day 2 verification](docs/day2-verification.md) for the tested workflow and cleanup.
 
 ## Analyze the bundled real reviews
 
@@ -33,7 +63,9 @@ Day 1 processing neither imports it nor starts a server.
 Omit `--summary` to include all individual scored reviews in the JSON result.
 The service returns original, rejected, duplicate, and analyzed counts; sentiment
 counts and percentages; full-precision scores; product/source metadata; warnings;
-and original review evidence. It does not write results or call a remote service.
+and original review evidence. `aspect_analysis` adds full-precision feature estimates,
+supporting review IDs/counts, evidence-volume tiers, method metadata, and warnings.
+It does not write results or call a remote service.
 
 ```python
 from perceptra.analysis import analyze_product
@@ -81,7 +113,7 @@ subset is sufficient to run analysis without the original CSV.
 
 ## NLTK resources
 
-Only legacy aspect extraction currently needs NLTK data. Prepare its small resources
+Aspect extraction needs NLTK data. Prepare its small resources
 explicitly, using the project virtual environment:
 
 ```powershell
@@ -93,8 +125,9 @@ exclusively in `.venv/nltk_data/`. Application resource checks restrict NLTK's s
 path to that location, ignoring system/user caches. Imports and inference never
 download data. No transformer model weights are required.
 
-After dependencies and these resources are prepared, the Day 1 application and
-tests run offline. Tests also block network access and NLTK downloads during inference.
+After dependencies and these resources are prepared, analysis and the dashboard
+run offline. Tests block external network access and NLTK downloads during inference;
+AppTest permits Windows' internal loopback coordination.
 
 ## Package layout
 
@@ -102,19 +135,22 @@ tests run offline. Tests also block network access and NLTK downloads during inf
 perceptra/
   config.py                   Local paths and explicit NLTK resource checks
   schemas.py                  Shared result and review contracts
-  analysis.py                 Data -> cleaning -> VADER -> aggregation + CLI
+  analysis.py                 Data -> cleaning -> VADER -> aspects -> structured results + CLI
   ingestion/dataset_loader.py Deterministic preparation and offline loading
   ingestion/youtube.py        Optional, explicitly invoked collection
   nlp/cleaner.py               Conservative cleaning and validation
   nlp/sentiment.py             VADER facade and weighted aggregation
-  nlp/aspects.py               Existing aspect algorithm, migrated for compatibility
+  nlp/aspects.py               POS/frequency estimates and stable review-ID evidence joins
+app/streamlit_app.py          Native Streamlit dashboard, no duplicated scoring
+.streamlit/config.toml        Restrained native theme and disabled usage telemetry
 scripts/prepare_demo_data.py  Dataset/resource preparation
 data/processed/               Bundled real CC0 sample and provenance
-tests/                       Day 1 component/integration checks
-docs/demo.md                 Day 1 verification and limitations
+tests/                       Processing, integration, compatibility, and isolated AppTest checks
+docs/demo.md                 Demo instructions and Day 1 baseline
+docs/day2-verification.md    Day 2 results, browser checks, and cleanup
 ```
 
-No empty UI, database, Airflow, or model-engine placeholder directories are created.
+No database, Airflow, or remote-model placeholder directories are created.
 Default paths resolve from the editable project location, not the current working
 directory. Set the process environment variable `PERCEPTRA_DATA_DIR`, or pass CLI
 `--data-dir`, to select an alternate data root containing `processed/`.
@@ -155,6 +191,11 @@ The offline analysis path needs no YouTube key. Do not activate paid services.
 Tests cover import safety, deterministic preparation, checksums, provenance and label
 exclusion, conservative preprocessing, product-scoped duplicates, real VADER scoring,
 threshold boundaries, legacy wrappers, empty results, and both real prepared products.
+Day 2 adds aspect ID matching, exact-token boundaries, supporting counts/rating
+formulas, resource failures, and AppTest scenarios for startup, analysis, matching
+metrics, product switching, review pagination/search, empty states, and failures.
+AppTest runs in isolated `.venv` subprocesses so UI imports cannot contaminate the
+headless-service isolation checks. It complements actual-browser verification.
 Authored fixtures are synthetic test inputs and are not demonstration data.
 
 Sentiment thresholds are positive at compound >= 0.05, negative at <= -0.05, otherwise
@@ -171,9 +212,12 @@ customer star rating. Empty results have unavailable (`null`) scores/ratings. Sh
 reviews, non-English text, and question-only entries retain the existing filtering
 policy, with rejection counts reported. VADER may miss sarcasm and context.
 
-The legacy aspect implementation remains partly whitelist-based and assigns whole-
-review sentiment to mentioned terms; it is not contextual ABSA. Its old text joins
-and rating behavior will be addressed when integrating it on Day 2. There is no
-Streamlit dashboard or aspect output in the Day 1 analysis service.
+Aspect extraction remains partly whitelist-based and assigns whole-review sentiment
+to mentioned terms; it is not contextual ABSA. It preserves noun-frequency ranking
+and the fallback, uses complete-token matching and stable review-ID joins, and excludes
+missing/invalid predictions rather than treating them as neutral. No TF-IDF, transformer,
+lemmatization, or phrase extraction is added. Volume tiers are Low below 7 supporting
+reviews, Medium at 7–14, and High at 15+. They are not accuracy probabilities. The
+overall product rating still comes exclusively from review-level VADER aggregation.
 
 Work remains on the fork's existing `main`; staging, commits, and pushes are manual.

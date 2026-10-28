@@ -1,4 +1,37 @@
-# Day 1 verification and handoff
+# Perceptra demo instructions and verification
+
+## Current dashboard workflow (Day 2)
+
+Use the existing `.venv`; do not install packages globally. Optional activation:
+`.\.venv\Scripts\Activate.ps1`.
+
+```powershell
+.\.venv\Scripts\python.exe -m streamlit run app/streamlit_app.py --server.address 127.0.0.1 --server.port 8501
+```
+
+Open `http://127.0.0.1:8501`. Select **Clothing 1078 · Dresses**, click **Analyze
+product**, and inspect the sentiment metrics/chart and customer evidence. Open
+**Aspect estimates** to see ratings, support counts, and evidence-volume indicators;
+expand the supporting-evidence section to inspect real reviews. These are whole-review
+sentiment estimates, not contextual aspect-based sentiment analysis.
+
+Select **Clothing 862 · Knits**. Confirm old metrics disappear before clicking Analyze
+again. In **Customer reviews**, use sentiment/text filters and page through 25 reviews
+at a time. No chart or metric is hardcoded; values come from the service result.
+
+The small prepared CC0 dataset is already included. To rebuild from the original
+publisher CSV, use the preparation command in the README. Missing aspect resources
+can be prepared once with `.\.venv\Scripts\python.exe scripts/prepare_demo_data.py
+--prepare-nltk`; they stay in `.venv/nltk_data/`. Subsequent analysis needs no internet.
+
+Stop the server with Ctrl+C when finished. Verify port 8501 is no longer listening
+and do not terminate unrelated Python/browser processes. The [Day 2 report](day2-verification.md)
+records the actual verification performed and remaining limitations.
+
+## Day 1 baseline (historical record)
+
+The sections below preserve the Day 1 handoff before UI/aspect integration. Current
+capabilities and commands are described above and in the Day 2 report.
 
 ## Run the local service
 
