@@ -44,6 +44,16 @@ def run_analysis(app):
 '''
 
 CASES = {
+    "invalid_data_configuration": '''
+        import os
+        with patch.dict(os.environ, {"PERCEPTRA_DATA_DIR": "__missing_day3_dataset__"}):
+            app = start()
+        assert len(app.error) == 1
+        assert "missing or invalid" in app.error[0].value
+        assert any("PERCEPTRA_DATA_DIR" in item.value for item in app.info)
+        assert not app.metric
+        assert not app.button
+    ''',
     "startup": '''
         with patch("perceptra.analysis.analyze_product") as service:
             app = start()
@@ -94,6 +104,22 @@ CASES = {
         app.text_input(key="review_search").set_value("__no_review_can_match_this__").run()
         assert not app.exception
         assert any("No reviews match" in item.value for item in app.info)
+    ''',
+    "matching_search_and_product_filter_reset": '''
+        app = run_analysis(start())
+        app.selectbox(key="review_page").select(2).run()
+        app.text_input(key="review_search").set_value("MATERIAL").run()
+        assert not app.exception
+        assert app.selectbox(key="review_page").value == 1
+        tables = [table.value for table in app.dataframe if "Original review" in table.value.columns]
+        assert len(tables[-1]) > 0
+        assert all("material" in text.casefold() for text in tables[-1]["Original review"])
+        app.selectbox(key="selected_product").select("clothing:862").run()
+        assert not app.metric
+        run_analysis(app)
+        assert app.text_input(key="review_search").value == ""
+        assert app.selectbox(key="review_filter").value == "All sentiments"
+        assert app.selectbox(key="review_page").value == 1
     ''',
     "missing_resources": '''
         with patch("perceptra.nlp.aspects.check_nltk_resources", side_effect=LookupError("Run prepare_demo_data.py --prepare-nltk")):

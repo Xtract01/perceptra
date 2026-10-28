@@ -164,7 +164,11 @@ def main():
     except (OSError, ValueError):
         clear_analysis()
         st.error("The local review dataset is missing or invalid.")
-        st.info("Prepare the publisher CSV with .venv\\Scripts\\python.exe scripts/prepare_demo_data.py --input-csv <publisher.csv>.")
+        st.info(
+            "Check that data/processed/demo_reviews.csv and manifest.json are present, and that "
+            "PERCEPTRA_DATA_DIR points to the intended data folder. The bundled dataset needs no original CSV. "
+            "See README troubleshooting to restore these files or regenerate them from an optional publisher CSV."
+        )
         st.stop()
     if not products:
         clear_analysis()

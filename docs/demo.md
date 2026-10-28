@@ -1,204 +1,111 @@
-# Perceptra demo instructions and verification
+# Perceptra - live mentor demonstration runbook
 
-## Current dashboard workflow (Day 2)
+Use this during the review. The README contains full setup, architecture, licensing,
+troubleshooting, and developer instructions. This runbook assumes required setup is
+complete; it does not require the original CSV, API keys, a database, or internet.
 
-Use the existing `.venv`; do not install packages globally. Optional activation:
-`.\.venv\Scripts\Activate.ps1`.
+## Before the presentation
+
+- Work from the repository root and select `.venv\Scripts\python.exe` in your editor.
+- Optional PowerShell activation: `.\.venv\Scripts\Activate.ps1`.
+- Verify the actual interpreter; activation alone is not sufficient.
+- Confirm both bundled files exist: `data/processed/demo_reviews.csv` and `manifest.json`.
+- Prepare NLTK resources beforehand if this is a fresh setup. Do not download during
+  the presentation: `.\.venv\Scripts\python.exe scripts/prepare_demo_data.py --prepare-nltk`.
+- Run the test suite before the live session using the README command.
+- Open the README and this runbook, and close unrelated tabs that might distract.
+
+Quick checks:
+
+```powershell
+.\.venv\Scripts\python.exe -c "import sys; print(sys.executable)"
+.\.venv\Scripts\python.exe -m pip check
+.\.venv\Scripts\python.exe -m perceptra.analysis --list-products
+.\.venv\Scripts\python.exe -m perceptra.analysis --product "clothing:1078" --summary
+Get-NetTCPConnection -LocalPort 8501 -State Listen -ErrorAction SilentlyContinue
+```
+
+The analysis should have nonempty aspect estimates. If a listener already owns
+8501, identify it without stopping unrelated work and choose an available port.
+
+## Start the demonstration
 
 ```powershell
 .\.venv\Scripts\python.exe -m streamlit run app/streamlit_app.py --server.address 127.0.0.1 --server.port 8501
 ```
 
-Open `http://127.0.0.1:8501`. Select **Clothing 1078 · Dresses**, click **Analyze
-product**, and inspect the sentiment metrics/chart and customer evidence. Open
-**Aspect estimates** to see ratings, support counts, and evidence-volume indicators;
-expand the supporting-evidence section to inspect real reviews. These are whole-review
-sentiment estimates, not contextual aspect-based sentiment analysis.
+Open `http://127.0.0.1:8501`. Keep the launching terminal available for errors and
+shutdown. Start with a common desktop window size; 1440-1000 and 1366x900 were checked.
 
-Select **Clothing 862 · Knits**. Confirm old metrics disappear before clicking Analyze
-again. In **Customer reviews**, use sentiment/text filters and page through 25 reviews
-at a time. No chart or metric is hardcoded; values come from the service result.
+## Demonstration sequence
 
-The small prepared CC0 dataset is already included. To rebuild from the original
-publisher CSV, use the preparation command in the README. Missing aspect resources
-can be prepared once with `.\.venv\Scripts\python.exe scripts/prepare_demo_data.py
---prepare-nltk`; they stay in `.venv/nltk_data/`. Subsequent analysis needs no internet.
+| Step | Do | Say/check |
+|---|---|---|
+| 1 | Introduce Perceptra | "We help product teams understand customer sentiment and trace insights to review evidence." |
+| 2 | Point out the dataset/source/license | "These are real historical CC0 clothing reviews. Clothing IDs are anonymized; this is not live scraping." |
+| 3 | Select Clothing 1078 - Dresses | Confirm the category and 200 prepared reviews are shown. |
+| 4 | Click Analyze product | "This runs validation, preprocessing, local VADER, and noun-frequency aspect extraction." |
+| 5 | Explain analyzed count | "Counts reflect usable reviews after filters and duplicate checks." |
+| 6 | Explain distribution | Show positive/negative/neutral percentages and exact chart counts. Do not call percentages model accuracy. |
+| 7 | Explain perception rating | "It maps mean sentiment onto 0-10; it is not a customer star-rating average." |
+| 8 | Open Aspect estimates | "These terms are extracted from review nouns. Ratings estimate sentiment of reviews mentioning each term." |
+| 9 | Expand supporting evidence | Select Size and show its original review evidence. "Review IDs connect predictions to source text." |
+| 10 | Open Customer reviews | Select page 2, filter Negative, then return to All sentiments and search MATERIAL. Try a nonsense search to show the empty state, then clear it. |
+| 11 | Select Clothing 862 - Knits | Confirm old metrics disappear before analysis. |
+| 12 | Click Analyze product again | Repeat the main metrics and aspect/review views for this product. |
+| 13 | Summarize implemented work | "We have a modular local pipeline, stable IDs/provenance, a working dashboard, failure handling, and automated tests." |
+| 14 | Explain limitations/future work | "Whole-review scores cannot separate conflicting feature opinions yet. Contextual ABSA, benchmarking, persistence, and scheduling are future work." |
 
-Stop the server with Ctrl+C when finished. Verify port 8501 is no longer listening
-and do not terminate unrelated Python/browser processes. The [Day 2 report](day2-verification.md)
-records the actual verification performed and remaining limitations.
+Reference snapshot **October 28, 2026** (recalculate if data/model versions change):
 
-## Day 1 baseline (historical record)
+| Product | Analyzed | Positive / negative / neutral | Overall rating | Aspects |
+|---|---:|---|---:|---:|
+| Clothing 1078 | 200 | 189 / 9 / 2 | 8.85/10 | 8 |
+| Clothing 862 | 198 | 187 / 10 / 1 | 8.78/10 | 8 |
 
-The sections below preserve the Day 1 handoff before UI/aspect integration. Current
-capabilities and commands are described above and in the Day 2 report.
+Dresses' Size estimate is 8.98/10 from 53 supporting reviews. Explain that High
+**evidence volume** means at least 15 supporting reviews, not guaranteed correctness.
+Two Knits reviews are filtered by the retained language/length policy.
 
-## Run the local service
+## Technical talking points
+
+- Data loading, preprocessing, sentiment, aspects, service orchestration, and UI
+  have separate responsibilities in the `perceptra` package.
+- Streamlit calls `analyze_product(product_id, engine="vader")`; it does not recalculate scores.
+- All predictions come from local VADER; no paid API or large transformer is involved.
+- Feature evidence joins on review IDs; missing predictions are excluded, not assumed neutral.
+- Dataset labels such as star ratings and recommendation flags never enter inference inputs.
+- Aspect scores reuse whole-review sentiment; mixed opinions and sarcasm remain limitations.
+- The repository currently has no software LICENSE file; dataset CC0 is a separate matter.
+
+## Recovery during the review
+
+| Symptom | Safe action |
+|---|---|
+| The page cannot connect | Check the launch terminal/address; restart the same command if the server exited. |
+| Port 8501 is occupied | Leave unrelated processes alone; use `--server.port 8502` and open port 8502. |
+| Missing/invalid data message | Check the two processed files and `PERCEPTRA_DATA_DIR`. Ordinary execution needs no source CSV; restore intact bundled files if needed. |
+| Aspect resources unavailable | Retain the valid sentiment result, explain the limitation, and run the explicit NLTK preparation before resuming the full demo. |
+| Unexpected analysis error | Read the terminal, retry once, then show the CLI analysis as a diagnostic fallback without claiming the UI passed. |
+| No review search matches | Clear the search and choose All sentiments. Overall product analysis is unchanged by review filtering. |
+| An unexpected score appears | Inspect original text and the model limitation; do not alter displayed statistics. |
+
+Do not install packages globally, alter checksums to suppress an error, or terminate
+all Python/browser processes. Do not present this prototype as production-ready.
+
+## Shutdown and restart
+
+1. Press Ctrl+C in the terminal that launched Streamlit and wait for process exit.
+2. Recheck the used port:
 
 ```powershell
-.\.venv\Scripts\python.exe -m perceptra.analysis --product "clothing:1078" --summary
-.\.venv\Scripts\python.exe -m perceptra.analysis --product "clothing:862" --summary
-.\.venv\Scripts\python.exe -m pytest -q --basetemp=.venv/test-tmp
-.\.venv\Scripts\python.exe -m pip check
+Get-NetTCPConnection -LocalPort 8501 -State Listen -ErrorAction SilentlyContinue
 ```
 
-The core service uses no Streamlit, API credentials, NLTK downloads, paid inference,
-or transformer weights. It uses the bundled prepared CSV and VADER's local lexicon.
-The tests block inference network requests. CLI commands are short-lived and exit;
-no server is started for Day 1.
+Use 8502 in that command if you selected the alternate port. If a listener remains,
+identify its owner before taking action; never stop unrelated work. Closing the
+browser alone does not stop Streamlit. Restart with the same launch command.
 
-## Real dataset snapshot
-
-Publisher: https://www.kaggle.com/datasets/nicapotato/womens-ecommerce-clothing-reviews
-
-Publisher license metadata: https://www.kaggle.com/nicapotato/womens-ecommerce-clothing-reviews/metadata
-
-Declared license: CC0-1.0, version 1. Dataset origin is an anonymous retailer.
-The full source has 23,486 records, including 22,641 valid/nonempty review records.
-Preparation rejects 845 empty/invalid source records before product ranking.
-
-| Product | Available valid source reviews | Prepared | Analyzed | Positive | Negative | Neutral | Perception /10 |
-|---|---:|---:|---:|---:|---:|---:|---:|
-| clothing:1078 - Dresses | 987 | 200 | 200 | 189 | 9 | 2 | 8.851130 |
-| clothing:862 - Knits | 778 | 200 | 198 | 187 | 10 | 1 | 8.778843 |
-
-Knits has two reviews rejected by the retained language/minimum-length policy.
-Neither product's prepared sample has duplicates removed. The source data are
-historical and anonymized; results describe this subset, not a market estimate.
-
-Source CSV SHA-256:
-
-```text
-bd93cc515747ad1f87b8bc863c9e40da758509e6db6506a96d06976e61e36ee0
-```
-
-Prepared CSV SHA-256:
-
-```text
-965943770b4b4479f5a037d036128d30ee9404be4e1a28517205d1d3ca8f0ae0
-```
-
-Full machine-readable provenance is in `data/processed/manifest.json`. Ratings,
-recommendation labels, and helpful-feedback counts are never NLP inputs. Likes are
-zero. Product selection ranks nonempty review volume, not sentiment.
-
-## Environment
-
-Runtime and development requirements were installed sequentially into the freshly
-created project `.venv`, testing both requirements files. Dependency declarations
-live only in `pyproject.toml`. The virtual environment excludes system site-packages.
-
-Verified versions: Python 3.13.6, VADER 3.3.2, langdetect 1.0.9, NLTK 3.10.4,
-Streamlit 1.66.1, pytest 9.2.0. Streamlit is installed but unused by the Day 1 service.
-NLTK resources live only at `.venv/nltk_data/`. No Transformers or PyTorch installed.
-
-## Limitations and Day 2 boundary
-
-- No dashboard, browser UI test, or Streamlit server exists yet.
-- Aspect code is moved and import-safe, preserving its legacy function/CLI. It is
-  deliberately not integrated into `analyze_product` on Day 1.
-- Live YouTube access is unverified; the optional dependencies are not required or
-  installed by the normal runtime/development requirements.
-- Language filtering is statistical; short-text and question filters can reject
-  useful opinions. Counts and warnings expose that limitation.
-- VADER is not a contextual model and provides no calibrated class probabilities.
-
-The Day 2 implementation can consume `list_products()` and `analyze_product()`
-directly. It should add aspect ID joins/evidence labeling and the Streamlit interface
-without changing the verified review-based scoring definition.
-
-## Executed verification
-
-Final commands and outcomes:
-
-```text
-.venv\Scripts\python.exe -m pytest -q --basetemp=.venv/test-tmp
-39 passed in 4.21s; no failures or skips
-
-.venv\Scripts\python.exe -m pip check
-No broken requirements found.
-
-.venv\Scripts\python.exe -m perceptra.analysis --product clothing:1078
-Exit 0; 200 scored reviews; 189 positive, 9 negative, 2 neutral
-Overall compound 0.770226; perception rating 8.851130000000001
-```
-
-The full CLI JSON was parsed and the mean/rating independently recomputed from its
-individual review scores. Both products also completed the automated real-dataset
-pipeline test with network connections disabled. All five root wrappers passed
-their help/identity checks; cleaner and sentiment legacy file workflows were executed.
-Legacy aspect inference itself and live YouTube collection remain unverified.
-
-The initial runtime installation used `requirements.txt` in a newly created `.venv`;
-the development installation then used `requirements-dev.txt` in the same environment.
-Both succeeded. Installed runtime/testing module locations were verified inside
-`.venv/Lib/site-packages`, and `include-system-site-packages = false` was confirmed.
-The final working-tree whitespace check passed; Git only reported its ordinary
-Windows LF/CRLF conversion notice. No files were staged and the branch remained `main`.
-
-## File inventory
-
-Modified existing files:
-
-```text
-.gitignore
-README.md
-requirements.txt
-fetch_youtube.py
-save_data.py
-clean_data.py
-sentiment_analysis.py
-dynamic_aspects.py
-```
-
-Created project files:
-
-```text
-.env.example
-pyproject.toml
-requirements-dev.txt
-perceptra/__init__.py
-perceptra/config.py
-perceptra/schemas.py
-perceptra/analysis.py
-perceptra/ingestion/__init__.py
-perceptra/ingestion/dataset_loader.py
-perceptra/ingestion/youtube.py
-perceptra/nlp/__init__.py
-perceptra/nlp/cleaner.py
-perceptra/nlp/sentiment.py
-perceptra/nlp/aspects.py
-scripts/prepare_demo_data.py
-data/processed/demo_reviews.csv
-data/processed/manifest.json
-tests/conftest.py
-tests/test_imports.py
-tests/test_data.py
-tests/test_preprocessing.py
-tests/test_sentiment.py
-tests/test_aspects.py
-tests/test_youtube.py
-tests/test_pipeline.py
-docs/demo.md
-```
-
-The original algorithms were migrated into the listed package modules, with the
-five original filenames retained as wrappers. No original project file was deleted.
-Generated/ignored files include `.venv/` and its dependencies, pip/test caches and
-NLTK resources, editable-install `perceptra.egg-info/`, Python bytecode, and the
-original `data/raw/Womens Clothing E-Commerce Reviews.csv`.
-
-## Process and temporary-artifact cleanup
-
-All installation, preparation, CLI, and test processes started for this task exited.
-The final Windows process query found zero task-owned Python processes. No Streamlit
-or development server was started, so no task-owned listening ports needed release.
-No force termination or interruption of unrelated processes was necessary.
-
-Removed the two abandoned sandbox pytest-cache temporary directories and
-`.venv/test-tmp` after verification. Preserved `.venv`, installed packages, NLTK
-resources, source data, prepared data, and every required project file.
-
-Day 1 is complete and ready for Day 2 aspect-service integration and Streamlit work.
-No Day 2 implementation, staging, commit, push, branch change, or upstream change
-was performed.
+The automated Day 3 verification also used an isolated Edge debug port 9333. That
+port is not needed for a normal mentor demo. Task-owned verification servers and
+browser processes were closed; see `docs/day3-verification.md` for final evidence.
