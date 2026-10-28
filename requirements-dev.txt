@@ -1,0 +1,3 @@
+# Install runtime requirements and the project's development extra.
+-r requirements.txt
+-e .[dev]

@@ -1,6 +1,17 @@
 venv/
+.venv/
 .env
+.env.*
+!.env.example
 __pycache__/
 *.pyc
 *.json
+!data/processed/manifest.json
 *.bin
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+build/
+dist/
+data/raw/

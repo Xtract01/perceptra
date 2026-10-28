@@ -1,2 +1,2 @@
-venv\Scripts\activate
-pip freeze > requirements.txt
+# Dependency versions are declared only in pyproject.toml.
+-e .
