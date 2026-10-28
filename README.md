@@ -471,46 +471,292 @@ temporary task helpers; those helpers are not a packaged browser-test command.
 
 ## 13. Live mentor demonstration guide
 
-### Before presenting
+This walkthrough covers preparation, the live presentation, recovery, and shutdown.
+It can be followed using this README alone. Keep [docs/demo.md](docs/demo.md) nearby
+as a separate presentation runbook with additional talking points.
 
-Activate `.venv` if desired, then verify interpreter identity, `pip check`, both
-prepared files, `--list-products`, and one `--summary` analysis using the commands
-above. Run the tests beforehand rather than during the live presentation. Check
-that the chosen port is free:
+### A. Prepare before the demonstration
+
+**First-time setup only.** Open PowerShell in the parent directory where you want
+the project, then run:
+
+```powershell
+git clone https://github.com/Xtract01/perceptra.git
+cd perceptra
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+.\.venv\Scripts\python.exe scripts/prepare_demo_data.py --prepare-nltk
+```
+
+Use Python 3.11+; the Day 3 reference environment is Python 3.13.6 on Windows.
+Only the bootstrap command uses the base interpreter. All subsequent installs,
+scripts, and tests use this clone's `.venv` explicitly. Activation is optional;
+see section 7 for PowerShell/CMD activation and Python-launcher alternatives.
+Packages stay inside `.venv` and NLTK resources inside `.venv/nltk_data/`.
+Initial installation needs internet; the prepared dashboard then runs locally
+without an API key, `.env` file, PostgreSQL, or the original publisher CSV.
+Keep an existing working `.venv` rather than repeating first-time setup.
+
+**Before every demonstration.** Open PowerShell in the repository root (the
+directory containing `pyproject.toml`, `app/`, and `data/`) and run:
+
+```powershell
+.\.venv\Scripts\python.exe -c "import sys; print(sys.executable)"
+.\.venv\Scripts\python.exe -m pip check
+Test-Path -LiteralPath "data/processed/demo_reviews.csv"
+Test-Path -LiteralPath "data/processed/manifest.json"
+.\.venv\Scripts\python.exe -c "from perceptra.config import check_nltk_resources; check_nltk_resources(); print('Local NLTK resources ready')"
+.\.venv\Scripts\python.exe -m perceptra.analysis --list-products
+.\.venv\Scripts\python.exe -m perceptra.analysis --product "clothing:1078" --summary
+.\.venv\Scripts\python.exe -m pytest -q --basetemp=.venv/day3-test-tmp
+Get-NetTCPConnection -LocalPort 8501 -State Listen -ErrorAction SilentlyContinue
+```
+
+Confirm the executable is this project's `.venv\Scripts\python.exe`, dependency
+checks pass, both file checks return `True`, NLTK validation succeeds, and both
+products appear in the catalog. The smoke analysis should report `complete` with
+available aspects. Tests should exit zero; 71 passed in the dated Day 3 snapshot.
+Resolve failures before presenting. No listener output means port 8501 is free
+when the network query succeeds; if the query is denied, availability is unverified.
+For an occupied port, use the safe alternate-port procedure below.
+
+### B. Start Streamlit
+
+From the repository root, run:
+
+```powershell
+.\.venv\Scripts\python.exe -m streamlit run app/streamlit_app.py
+```
+
+Keep this terminal open. Successful startup prints a local URL and leaves the
+server running without a startup error. Open the printed address, normally
+`http://localhost:8501`, manually if a browser does not open. The page should show
+the Perceptra header, the Product selector, and the **Analyze product** button.
+The initial prompt asks you to select/analyze a product; metrics appear after
+analysis. Allow the first run to load the local NLP resources.
+
+If 8501 is occupied, leave its owner running. Check 8502 first:
+
+```powershell
+Get-NetTCPConnection -LocalPort 8502 -State Listen -ErrorAction SilentlyContinue
+.\.venv\Scripts\python.exe -m streamlit run app/streamlit_app.py --server.address 127.0.0.1 --server.port 8502
+```
+
+Run the second command only if 8502 is free, then open `http://127.0.0.1:8502`.
+If it is occupied too, choose another available port and use that port throughout
+the presentation and shutdown checks. Use a second PowerShell terminal at the
+repository root for the CLI and test steps while Streamlit stays running.
+
+### C. Present the complete working MVP
+
+1. **Introduce Perceptra.**
+
+   **Show:** The dashboard header before analysis.
+   **Expect:** A compact product selector and introductory prompt.
+   **Say:** "Perceptra helps product teams turn customer reviews into sentiment
+   summaries and feature estimates, with evidence they can inspect. This MVP
+   implements a local dataset-to-dashboard workflow."
+
+2. **Explain the data source.**
+
+   **Show:** The sidebar's Dataset, License, and Dataset source controls. The
+   publisher link needs internet; the bundled manifest in `data/processed/` can
+   be shown offline instead.
+   **Expect:** Women's E-Commerce Clothing Reviews and CC0-1.0 provenance.
+   **Say:** "These are bundled historical reviews with anonymized Clothing IDs.
+   The demo needs no YouTube key because it reads local files. A separate legacy
+   YouTube collector exists, but its live API access is unverified."
+
+3. **Analyze Clothing 1078 - Dresses.**
+
+   **Click:** Choose Clothing 1078 in **Product**, then **Analyze product**.
+   **Expect:** A loading indicator followed by five overview metrics and three
+   analysis tabs. The Day 3 reference has 200 analyzed reviews, an 8.85/10 rating,
+   and 94.5% positive, 4.5% negative, and 1.0% neutral sentiment.
+   **Say:** "These counts reflect usable reviews after preprocessing. Perception
+   is an NLP-derived rating, not an average of customers' star ratings."
+
+4. **Explain the sentiment visualization.**
+
+   **Click:** **Sentiment overview**; point to the bar chart and exact-count table.
+   Expand **Read full review** under positive or negative evidence.
+   **Expect:** 189 positive, 9 negative, and 2 neutral reviews in the reference run.
+   **Say:** "Local VADER uses a sentiment lexicon and rules to assign a compound
+   score from -1 to +1. At least +0.05 is positive; at most -0.05 is negative.
+   Here likes are zero, so perception is `5 * (mean compound + 1)`, mapped to 0-10.
+   Sentiment percentages describe reviews, not model accuracy."
+
+5. **Demonstrate aspect extraction and evidence.**
+
+   **Click:** **Aspect estimates**, expand **Inspect supporting review evidence**,
+   and select **Size** in the Aspect dropdown.
+   **Expect:** Aspect names, estimated ratings, supporting counts, evidence-volume
+   tiers, and up to ten supporting reviews with IDs and individual predictions.
+   The Day 3 Dresses Size reference is 8.98/10 from 53 supporting reviews.
+   **Say:** "We identify frequent POS-tagged nouns using a dimension list and
+   fallback. An estimate averages the sentiment of whole reviews mentioning the
+   term. This is not full contextual aspect-based sentiment analysis: a review
+   can praise design and criticize material, yet contribute one score to both.
+   High evidence volume means more supporting reviews, not proven accuracy."
+
+6. **Explore customer reviews.**
+
+   **Click:** **Customer reviews**. With **All sentiments** selected and search
+   empty, choose **Page** 2. Then try **Positive**, **Negative**, and **Neutral**
+   under **Filter sentiment**. Return to **All sentiments**, search `MATERIAL`,
+   try `__no_review_matches__`, and clear the search afterward.
+   **Expect:** Page 2 shows reviews 26-50; pages contain at most 25 rows. Filters
+   show the chosen sentiment, matching search ignores case, and an unmatched
+   search produces a useful empty message. Search/filter changes reset the page.
+   **Say:** "These are original review texts linked to stable review IDs and
+   predictions. Filtering changes the table, not the overall product metrics.
+   Supporting evidence is also available in the aspect and sentiment views."
+
+7. **Switch to Clothing 862 - Knits.**
+
+   **Click:** Change **Product** to Clothing 862 and pause before analyzing.
+   Then click **Analyze product** and inspect all three tabs again.
+   **Expect:** Old results disappear immediately on selection. The new analysis
+   has 198 usable reviews and an 8.78/10 reference rating; two of its 200 prepared
+   reviews were filtered. Previous review filters/search are cleared.
+   **Say:** "This is an independent product analysis: 187 positive, 10 negative,
+   and 1 neutral review in our reference run. Differences describe these retained
+   subsets; they do not establish a market-wide ranking of the products."
+
+8. **Show the technical pipeline.**
+
+   **Show:** `perceptra/ingestion/dataset_loader.py`, `nlp/cleaner.py`,
+   `nlp/sentiment.py`, `nlp/aspects.py`, `analysis.py`, and `schemas.py` inside
+   `perceptra/`, then `app/streamlit_app.py`. Run in the second terminal:
+
+   ```powershell
+   .\.venv\Scripts\python.exe -m perceptra.analysis --list-products
+   .\.venv\Scripts\python.exe -m perceptra.analysis --product "clothing:862" --summary
+   ```
+
+   **Expect:** The catalog and structured service output, including sentiment
+   totals, rating, aspect estimates, warnings, and provenance. `--summary` omits
+   individual scored-review text.
+   **Say:** "Data loading and validation feed preprocessing, VADER scoring,
+   overall aggregation, and aspect extraction with review-ID evidence joins.
+   The service returns structured results. Streamlit calls the same
+   `analyze_product()` service and displays its values without duplicating the
+   scoring logic. The CLI proves that analysis also works independently of UI."
+
+9. **Demonstrate regression testing and local operation.**
+
+   **Run:** In the second terminal:
+
+   ```powershell
+   .\.venv\Scripts\python.exe -m pytest -q --basetemp=.venv/day3-test-tmp
+   ```
+
+   **Expect:** A zero exit code and a passing summary; allow about a minute in
+   the presentation schedule rather than promising a fixed runtime. A dated
+   reference count is not a substitute for the actual result.
+   **Show:** `.env.example` and the package dependencies in `pyproject.toml`;
+   do not display a private `.env` or credentials.
+   **Say:** "Regression tests cover data, filters, scoring, evidence joins,
+   product isolation, and UI failures. The core workflow needs no YouTube
+   credentials or PostgreSQL. Tests block external connections, and Day 3 also
+   verified offline analysis and an actual browser with external access blocked."
+   If asked for a live offline rehearsal, disconnect networking only if it will
+   not interrupt the presentation, then reanalyze a bundled product; no install,
+   download, or publisher-link access should be needed after setup.
+
+10. **Explain limits and next steps.**
+
+    **Show:** Expand **Method, provenance, and limitations** below the results.
+    **Expect:** Engine/version, limitations, processing notes where applicable,
+    and the prepared dataset checksum.
+    **Say:** "We have local ingestion, VADER, whole-review aspect estimates,
+    review evidence, CLI, dashboard, and tests. Contextual ABSA, verified live
+    YouTube ingestion, transformer models, competitive benchmarking, PostgreSQL
+    persistence, and Apache Airflow automation remain future work. The current
+    historical subset and heuristic models do not establish production accuracy."
+
+### D. Expected demo results
+
+**Day 3 verified reference results - October 28, 2026:**
+
+| Product | Reviews | Positive | Negative | Neutral | Rating |
+|---|---:|---:|---:|---:|---:|
+| Clothing 1078 | 200 | 189 | 9 | 2 | 8.85/10 |
+| Clothing 862 | 198 | 187 | 10 | 1 | 8.78/10 |
+
+These are measured reference results, not hardcoded application outputs. Reviews
+means retained analyzed reviews; both prepared subsets contain 200 records.
+Results may change when the dataset, preprocessing, model version, or analysis
+implementation changes. Compare the current UI with current CLI output before
+claiming a mismatch. See [Day 3 verification](docs/day3-verification.md) for evidence.
+
+### E. Recover from common live-demo problems
+
+| Problem | Safe recovery |
+|---|---|
+| Streamlit does not start | Read the launching terminal. Confirm the repository root and interpreter, run `pip check`, check the selected port, then retry the command in B. A printed URL alone does not prove the page loaded. |
+| Browser does not open automatically | Open the URL printed in the terminal manually, usually `http://localhost:8501`; use `http://127.0.0.1:8502` for the alternate command. |
+| Incorrect Python / missing packages | Print `sys.executable` with the command below, select that interpreter in the editor, and reinstall development requirements through the explicit `.venv` path. Activation is optional. |
+| Missing NLTK resources | Run the NLTK preparation command below before resuming the full demo. Sentiment remains usable while aspects are unavailable. Resource download requires internet. |
+| Missing or invalid dataset | Run both `Test-Path` checks in A; verify `PERCEPTRA_DATA_DIR` points at the intended data root. If it is an accidental override, clear it as below and restart Streamlit. For missing files, obtain an intact bundled CSV/manifest pair from the maintainer; ordinary setup needs no original CSV. Optional regeneration is in section 10. |
+| Port 8501 already in use | Inspect its listener with the command in A; leave unrelated applications running and follow B to use a free alternate port. |
+| Dashboard is empty | Select a product and click **Analyze product**. For no matching reviews, clear search and select **All sentiments**. For no usable analysis, inspect rejection counts/warnings and run the CLI smoke test; do not fabricate a rating. |
+| Tests fail | Read the named failure/traceback, check interpreter, dependencies, NLTK, and data, then rerun the failing file. Do not claim the demo passed based on historical counts. If unresolved, show the CLI only as a diagnostic and state the limitation. |
+
+Use these exact commands from the repository root as appropriate:
+
+```powershell
+.\.venv\Scripts\python.exe -c "import sys; print(sys.executable)"
+.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+.\.venv\Scripts\python.exe -m pip check
+.\.venv\Scripts\python.exe scripts/prepare_demo_data.py --prepare-nltk
+```
+
+Only to clear a mistaken data override in the terminal that will launch Streamlit:
+
+```powershell
+Remove-Item Env:PERCEPTRA_DATA_DIR -ErrorAction SilentlyContinue
+```
+
+For a failing pipeline test, for example, a focused rerun is:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/test_pipeline.py -q --basetemp=.venv/day3-focused-tmp
+```
+
+Use the actual failing file name when another file failed. See section 14 for
+additional Windows troubleshooting; never suppress checksum failures or terminate
+unrelated processes to make the demonstration appear successful.
+
+### F. Stop and verify shutdown
+
+Press **Ctrl+C** in the terminal that launched Streamlit. Wait for the stopping
+message and return of the PowerShell prompt, which confirms that command exited.
+If pytest is still running in the second terminal, let it finish or interrupt it
+there with Ctrl+C. Closing the browser alone does not stop Streamlit.
+
+Check the port you used, normally 8501:
 
 ```powershell
 Get-NetTCPConnection -LocalPort 8501 -State Listen -ErrorAction SilentlyContinue
 ```
 
-An empty result means no listener was found. If occupied, identify its owner; do
-not kill unrelated applications. Use the alternate-port command in troubleshooting.
+Use `-LocalPort 8502` if you chose the alternate port. No listener output, when
+the query succeeds, confirms that port is released. If one remains, inspect its
+`OwningProcess` without stopping it:
 
-### Start
+```powershell
+$demoListeners = Get-NetTCPConnection -LocalPort 8501 -State Listen -ErrorAction SilentlyContinue
+$demoListeners | Select-Object LocalAddress, LocalPort, OwningProcess
+$demoListeners | ForEach-Object { Get-Process -Id $_.OwningProcess -ErrorAction SilentlyContinue }
+```
 
-Run the explicit localhost command from section 8 and open `http://127.0.0.1:8501`.
-Allow the first analysis to load local NLP resources. Keep [docs/demo.md](docs/demo.md)
-open as the concise speaking/runbook reference.
-
-### Demonstration sequence and suggested narration
-
-| Action | What to say |
-|---|---|
-| Introduce Perceptra | "We turn customer reviews into product sentiment summaries and feature estimates." |
-| Explain the data | "This is a real CC0 historical dataset with anonymized Clothing IDs, not live scraping." |
-| Select Clothing 1078 - Dresses; Analyze | "The button runs our actual local preprocessing, VADER, and aspect pipeline." |
-| Explain count, distribution, rating | "These values are calculated from retained reviews; the rating is an NLP indicator, not customer stars." |
-| Open Aspect estimates | "Nouns are extracted from review text; each estimate uses reviews mentioning the term." |
-| Expand supporting evidence | "Review IDs connect these estimates to original review evidence." |
-| Search/filter reviews and open page 2 | "We can inspect the underlying predictions rather than just show aggregate charts." |
-| Switch to Clothing 862; Analyze again | "Old results disappear on selection changes. This is an independent product analysis." |
-| Explain current scope | "The working MVP includes local ingestion, analysis, evidence, UI, and tests." |
-| Explain limitations/future work | "Mixed feature opinions are not separated yet; contextual ABSA, benchmarking, and automation are future objectives." |
-
-### After presenting
-
-Press Ctrl+C in the launching terminal, wait for process exit, and recheck the
-presentation port. Restart with the same launch command if needed. Close only
-the demo browser/profile you opened; closing a tab alone does not stop Streamlit.
+Use the actual port here too. Return to your own server's terminal for graceful
+shutdown; a remaining listener may belong to someone else. Do not indiscriminately
+kill Python or browser processes. Close the demo tab/window you opened and retain
+`.venv`, its installed packages/NLTK resources, datasets, and source files.
+Restart later with the same command in B.
 
 ## 14. Windows troubleshooting
 
