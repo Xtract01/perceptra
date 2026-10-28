@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "dataset_id": "nicapotato/womens-ecommerce-clothing-reviews",
+  "dataset_name": "Women's E-Commerce Clothing Reviews",
+  "dataset_version": "1",
+  "license": "CC0-1.0",
+  "license_metadata_url": "https://www.kaggle.com/datasets/nicapotato/womens-ecommerce-clothing-reviews/metadata",
+  "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+  "source_url": "https://www.kaggle.com/datasets/nicapotato/womens-ecommerce-clothing-reviews",
+  "acquisition_url": "https://www.kaggle.com/api/v1/datasets/download/nicapotato/womens-ecommerce-clothing-reviews?datasetVersionNumber=1",
+  "source_filename": "Womens Clothing E-Commerce Reviews.csv",
+  "source_sha256": "bd93cc515747ad1f87b8bc863c9e40da758509e6db6506a96d06976e61e36ee0",
+  "source_row_count": 23486,
+  "valid_source_review_count": 22641,
+  "rejected_source_row_count": 845,
+  "processed_filename": "demo_reviews.csv",
+  "processed_sha256": "965943770b4b4479f5a037d036128d30ee9404be4e1a28517205d1d3ca8f0ae0",
+  "selection": {
+    "rank": "valid_review_count_desc_then_clothing_id_asc",
+    "within_product": "original_source_row_order",
+    "max_reviews_per_product": 200
+  },
+  "excluded_input_fields": [
+    "Rating",
+    "Recommended IND",
+    "Positive Feedback Count",
+    "Age",
+    "Title"
+  ],
+  "likes_policy": "Zero: source feedback counts are not YouTube likes.",
+  "products": [
+    {
+      "product_id": "clothing:1078",
+      "clothing_id": 1078,
+      "name": "Clothing item 1078 - Dresses",
+      "category": "Dresses",
+      "department": "Dresses",
+      "division": "General Petite",
+      "review_count": 200,
+      "available_source_reviews": 987
+    },
+    {
+      "product_id": "clothing:862",
+      "clothing_id": 862,
+      "name": "Clothing item 862 - Knits",
+      "category": "Knits",
+      "department": "Tops",
+      "division": "General",
+      "review_count": 200,
+      "available_source_reviews": 778
+    }
+  ]
+}
